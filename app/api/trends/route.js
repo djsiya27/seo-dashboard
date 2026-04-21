@@ -30,13 +30,14 @@ async function tryGoogleTrends() {
     if (!res.ok) throw new Error('blocked');
     const xml = await res.text();
     const items = [];
-    const titleRe = /<title><!\[CDATA\[([^\]]+)\]\]><\/title>/g;
+    const titleRe = /<item>[\s\S]*?<title>([^<]+)<\/title>/g;
     const trafficRe = /<ht:approx_traffic>([^<]+)<\/ht:approx_traffic>/g;
     let tm; let i = 0;
-    while ((tm = titleRe.exec(xml)) && i < 13) {
-      if (i === 0) { i++; continue; }
+    while ((tm = titleRe.exec(xml)) && i < 12) {
       const tr = trafficRe.exec(xml);
-      items.push({ title: tm[1], traffic: tr ? tr[1] : 'Trending', category: 'Trending' });
+      // clean up any potential CDATA just in case it ever returns
+      const cleanTitle = tm[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+      items.push({ title: cleanTitle, traffic: tr ? tr[1] : 'Trending', category: 'Trending' });
       i++;
     }
     return items.length > 0 ? items : null;
