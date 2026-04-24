@@ -1,8 +1,9 @@
 'use client';
 import Image from 'next/image';
-import { ExternalLink, BarChart2, Clock, User, Tag } from 'lucide-react';
+import { ExternalLink, BarChart2, Clock, User, Loader2 } from 'lucide-react';
 import { analyzeArticle } from '@/lib/seoAnalyzer';
-import { useMemo } from 'react';
+import { decodeHtml } from '@/lib/utils';
+import { useMemo, useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
 function getScoreColor(score) {
@@ -44,13 +45,15 @@ function ScoreRing({ score }) {
   );
 }
 
-export default function ArticleCard({ article, onAnalyse }) {
-  const score = useMemo(() => analyzeArticle(article).total, [article]);
-  const { text: scoreColor, bg: scoreBg } = getScoreColor(score);
+export default function ArticleCard({ article, onAnalyse, isAnalyzing, isLocked }) {
+  const score = useMemo(() => {
+    return article.aiScore !== undefined ? article.aiScore : analyzeArticle(article).total;
+  }, [article]);
   const catColor = getCatColor(article.category);
-  const timeAgo = useMemo(() => {
-    try { return formatDistanceToNow(new Date(article.pubDate), { addSuffix: true }); }
-    catch { return ''; }
+  const [timeAgo, setTimeAgo] = useState('');
+  useEffect(() => {
+    try { setTimeAgo(formatDistanceToNow(new Date(article.pubDate), { addSuffix: true })); }
+    catch { setTimeAgo(''); }
   }, [article.pubDate]);
 
   return (
@@ -86,30 +89,34 @@ export default function ArticleCard({ article, onAnalyse }) {
           <a href={article.link} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}
             onMouseEnter={e => e.target.style.color = '#60a5fa'}
             onMouseLeave={e => e.target.style.color = 'var(--text-primary)'}>
-            {article.title}
+            {decodeHtml(article.title)}
           </a>
         </h2>
 
         {/* Excerpt */}
         <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          {article.description}
+          {decodeHtml(article.description)}
         </p>
 
         {/* Bottom row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
             onClick={() => onAnalyse(article)}
+            disabled={isAnalyzing || isLocked}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '7px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
-              background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(139,92,246,0.2))',
-              border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc',
-              cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-inter)',
+              background: (isAnalyzing || isLocked) ? 'rgba(59,130,246,0.1)' : 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(139,92,246,0.2))',
+              border: (isAnalyzing || isLocked) ? '1px solid rgba(99,102,241,0.2)' : '1px solid rgba(99,102,241,0.4)', 
+              color: (isAnalyzing || isLocked) ? 'var(--text-muted)' : '#a5b4fc',
+              cursor: (isAnalyzing || isLocked) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-inter)',
+              opacity: isLocked ? 0.7 : 1
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59,130,246,0.35), rgba(139,92,246,0.35))'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(139,92,246,0.2))'; e.currentTarget.style.transform = 'none'; }}
+            onMouseEnter={e => { if (!isAnalyzing && !isLocked) { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59,130,246,0.35), rgba(139,92,246,0.35))'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+            onMouseLeave={e => { if (!isAnalyzing && !isLocked) { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(139,92,246,0.2))'; e.currentTarget.style.transform = 'none'; } }}
           >
-            <BarChart2 size={13} /> Analyse SEO
+            {isAnalyzing ? <Loader2 size={13} className="spin" /> : <BarChart2 size={13} />}
+            {isAnalyzing ? 'Analyzing...' : isLocked ? 'Audit Complete' : 'Analyse AI'}
           </button>
           <a href={article.link} target="_blank" rel="noopener noreferrer"
             style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }}

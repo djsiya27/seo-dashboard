@@ -1,34 +1,85 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { analyzeArticle, generateKeywordSuggestions } from '@/lib/seoAnalyzer';
 import ArticleCard from './ArticleCard';
 import SeoModal from './SeoModal';
+import { Loader2 } from 'lucide-react';
 
-const CATEGORIES = ['All', 'News', 'Sports', 'Business', 'World', 'Lifestyle'];
 const ARTICLES_PER_PAGE = 8;
 
 export default function ArticleFeed({ initialArticles }) {
-  const [articles] = useState(initialArticles);
+  const [articles, setArticles] = useState(initialArticles);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [seoData, setSeoData] = useState(null);
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzingId, setAnalyzingId] = useState(null);
+  const [analyzedIds, setAnalyzedIds] = useState(new Set());
+
+  // Derive categories from articles
+  const categories = ['All', ...new Set(articles.map(a => a.category).filter(Boolean))].sort((a, b) => {
+    if (a === 'All') return -1;
+    if (b === 'All') return 1;
+    return a.localeCompare(b);
+  });
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [activeCategory, searchQuery]);
 
-  function handleAnalyse(article) {
-    const analysis = analyzeArticle(article);
-    const suggestions = generateKeywordSuggestions(article, analysis.topKeywords);
-    setSeoData({ ...analysis, keywordSuggestions: suggestions });
-    setSelectedArticle(article);
+  async function handleAnalyse(article) {
+    if (isAnalyzing) return;
+    
+    setIsAnalyzing(true);
+    setAnalyzingId(article.id);
+    
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ article }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.error) {
+        alert(`Analysis error: ${data.error}`);
+        return;
+      }
+      
+      setSeoData(data);
+      
+      // Update local state
+      setArticles(prev => prev.map(a => 
+        a.link === article.link ? { ...a, aiScore: data.total } : a
+      ));
+
+      // Persist to backend
+      try {
+        await fetch('/api/save-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ link: article.link, aiScore: data.total }),
+        });
+      } catch (err) {
+        console.error('Failed to persist analysis:', err);
+      }
+      
+      setSelectedArticle(article);
+      setAnalyzedIds(prev => new Set([...prev, article.id]));
+    } catch (err) {
+      console.error('Analysis error:', err);
+      alert('Failed to analyze article. Please check your internet connection and API key.');
+    } finally {
+      setIsAnalyzing(false);
+      setAnalyzingId(null);
+    }
   }
 
   const filtered = articles.filter(a => {
-    const catMatch = activeCategory === 'All' || a.category?.toLowerCase().includes(activeCategory.toLowerCase());
+    const catMatch = activeCategory === 'All' || a.category?.toLowerCase() === activeCategory.toLowerCase();
     const searchMatch = !searchQuery || a.title.toLowerCase().includes(searchQuery.toLowerCase());
     return catMatch && searchMatch;
   });
@@ -59,7 +110,7 @@ export default function ArticleFeed({ initialArticles }) {
           <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '16px' }}>🔍</span>
         </div>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          {CATEGORIES.map(cat => (
+          {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
@@ -94,7 +145,13 @@ export default function ArticleFeed({ initialArticles }) {
         <>
           <div className="stagger-children" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {paginatedArticles.map((article, idx) => (
-              <ArticleCard key={article.id || idx} article={article} onAnalyse={handleAnalyse} />
+              <ArticleCard 
+                key={article.id || idx} 
+                article={article} 
+                onAnalyse={handleAnalyse} 
+                isAnalyzing={analyzingId === article.id}
+                isLocked={analyzedIds.has(article.id)}
+              />
             ))}
           </div>
 
@@ -110,7 +167,7 @@ export default function ArticleFeed({ initialArticles }) {
               </button>
               
               <div style={{ display: 'flex', gap: '4px' }}>
-                {Array.from({ length: totalPages }).map((_, i) => (
+                {Array.from({ length: Math.min(10, totalPages) }).map((_, i) => (
                   <button
                     key={i + 1}
                     onClick={() => setCurrentPage(i + 1)}

@@ -1,6 +1,7 @@
 'use client';
 import Image from 'next/image';
 import { FileText, ExternalLink } from 'lucide-react';
+import { decodeHtml } from '@/lib/utils';
 
 function generateSynopsis(description, title) {
   if (!description) return 'No summary available.';
@@ -71,14 +72,14 @@ export default function ArticleSynopses({ articles }) {
                       display: '-webkit-box', WebkitLineClamp: 2,
                       WebkitBoxOrient: 'vertical', overflow: 'hidden',
                     }}>
-                      {article.title}
+                      {decodeHtml(article.title)}
                     </div>
                     <div style={{
                       fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4,
                       display: '-webkit-box', WebkitLineClamp: 2,
                       WebkitBoxOrient: 'vertical', overflow: 'hidden',
                     }}>
-                      {synopsis}
+                      {decodeHtml(synopsis)}
                     </div>
                   </div>
 

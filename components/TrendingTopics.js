@@ -62,7 +62,7 @@ export default function TrendingTopics() {
           </div>
           <div>
             <div style={{ fontFamily: 'var(--font-space)', fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
-              Trending in SA
+              Trending Searches
             </div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
               {source === 'google' ? '🟢 Google Trends' : '📌 Curated'}
