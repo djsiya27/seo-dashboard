@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-
-const DATA_FILE = path.join(process.cwd(), 'data', 'articles.json');
+import { getStoredArticles, saveArticles } from '@/lib/rss';
 
 export async function POST(req) {
   try {
@@ -12,8 +9,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const data = await fs.readFile(DATA_FILE, 'utf8');
-    const articles = JSON.parse(data);
+    const articles = await getStoredArticles();
 
     const updatedArticles = articles.map(article => {
       if (article.link === link) {
@@ -22,7 +18,7 @@ export async function POST(req) {
       return article;
     });
 
-    await fs.writeFile(DATA_FILE, JSON.stringify(updatedArticles, null, 2));
+    await saveArticles(updatedArticles);
 
     return NextResponse.json({ success: true });
   } catch (err) {
